@@ -7,4 +7,3 @@ corextopic
 networkx
 python-louvain
 matplotlib
-_pickle
