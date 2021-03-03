@@ -55,7 +55,7 @@ def get_topic_words(topic_model, num_words=10):
 from numba import jit
 
 # From nlp_utils, to reduce need for import 
-@jit(nopython=True)
+# @jit(nopython=True)
 def calc_cov(gamma_di_sub):
 
     n_docs = gamma_di_sub.shape[0]
