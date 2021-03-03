@@ -1,0 +1,10 @@
+pandas
+xarray
+scipy 
+bokeh
+numba
+corextopic
+networkx
+python-louvain
+matplotlib
+_pickle
