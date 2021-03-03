@@ -7,3 +7,4 @@ corextopic
 networkx
 python-louvain
 matplotlib
+joblib
