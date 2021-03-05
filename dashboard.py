@@ -177,7 +177,7 @@ columns = [
         TableColumn(field='partition', title='partition', formatter=formatter, width = 50),
         TableColumn(field='topic', title='Topic', width = 50),
         TableColumn(field='anchor words', title='Anchors', width = 150),
-        TableColumn(field='keywords', title='Keywords'),
+        TableColumn(field='keywords', title='Keywords', width=500),
           ]
 
 data_table = DataTable(source=ColumnDataSource(),
@@ -297,7 +297,9 @@ model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_
 
 #Graph controls
 
-generate_graph_desc = Paragraph(text='Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The models consist of combinations of anchored and unsupervised topics. Anchored topics have a thick border. The edges represent how often topics coocur in a given paper. The nodes are colored (partitioned) with a Louvain community detection algorithm. Change the sliders and recreate the graph.')
+generate_graph_desc = Div(text="""
+Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The models consist of combinations of anchored and unsupervised topics. Anchored topics have a thick border. The edges represent how often topics coocur in a given paper and the nodes are colored (partitioned) with a Louvain community detection algorithm, See <a href=https://energsustainsoc.biomedcentral.com/articles/10.1186/s13705-019-0226-z>Bickel (2019)</a>. Change the sliders and recreate the graph.
+""")
 
 models = [f for f in os.listdir(os.path.join(data_folder, 'models'))]
 
@@ -441,7 +443,7 @@ MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for
 # Layout
 general_description = Div(text=
 """
-This visualizaiton is part of a project trying to use natural language processing to undersand the state of the literature in the field of Energy Storage, read more <a href=https://aspitarl.github.io/projects/1_nlp/>here</a>. The Topic model is <a href=https://github.com/gregversteeg/corex_topic>Anchored CorEx</a>.
+This visualizaiton is part of a project trying to use natural language processing to undersand the state of the literature in the field of Energy Storage, read more <a href=https://aspitarl.github.io/projects/1_nlp/>here</a>. The Topic model is <a href=https://github.com/gregversteeg/corex_topic>Anchored CorEx</a>. The Github repository containing this app can be found <a href=https://github.com/aspitarl/corex_dashboard> here</a>.
 """
 )
 
