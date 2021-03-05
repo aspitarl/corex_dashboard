@@ -254,8 +254,7 @@ def gen_model_callback(event=None):
         status_str = status_str + 'Could not find anchor words: ' + str(missing_words)
 
     status_paragraph.text = status_str
-    gen_graph_callback()
-
+    
 
 num_unsup_spinner = Spinner(low=0, high=100, step = 1, value=0, title='number unsupervised topics')
 anchor_strength_slider = Slider(start=1, end=10, value=5, title='anchor strength')
@@ -298,7 +297,7 @@ model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_
 
 #Graph controls
 
-generate_graph_desc = Paragraph(text='Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The edges represent how often topics coocur in a given paper')
+generate_graph_desc = Paragraph(text='Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The models consist of combinations of anchored and unsupervised topics. Anchored topics have a thick border. The edges represent how often topics coocur in a given paper. The nodes are colored (partitioned) with a Louvain community detection algorithm. Change the sliders and recreate the graph.')
 
 models = [f for f in os.listdir(os.path.join(data_folder, 'models'))]
 
@@ -323,8 +322,6 @@ def gen_graph_callback(event=None):
 
     topic_words = get_topic_words(topic_model, 20)
 
-    topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
-        topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
     topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
     
     G = gen_cov_graph(da_sigma, cutoff_weight_slider.value)
@@ -384,8 +381,6 @@ def gen_graph_callback(event=None):
     data_table.source.data = df_table
 
     top_docs = topic_model.get_top_docs()      
-        top_docs = topic_model.get_top_docs()      
-    top_docs = topic_model.get_top_docs()      
 
     display_texts = metadata['display_text']
     corex_paper_display = []
@@ -431,8 +426,8 @@ cutoff_weight_slider = Slider(start=0, end=5.0, value=0.2, step =0.05, title='ed
 part_rand_slider = Slider(start=1, end=100, value = 42, title='partition random state')
 spring_rand_slider = Slider(start=1, end=100, value = 42, title='layout random state')
 
-graph_gen_sliders = column(part_res_slider, part_rand_slider, spring_rand_slider, cutoff_weight_slider)
-graph_panel = row(graph_gen_sliders, column(generate_graph_desc, model_select, gen_graph_button))
+graph_gen_sliders = column(part_res_slider, spring_rand_slider, cutoff_weight_slider)
+graph_panel = row(generate_graph_desc, graph_gen_sliders, column(model_select, gen_graph_button))
 
 #Paper links
 
@@ -444,9 +439,14 @@ MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for
 
 
 # Layout
+general_description = Div(text=
+"""
+This visualizaiton is part of a project trying to use natural language processing to undersand the state of the literature in the field of Energy Storage, read more <a href=https://aspitarl.github.io/projects/1_nlp/>here</a>. The Topic model is <a href=https://github.com/gregversteeg/corex_topic>Anchored CorEx</a>.
+"""
+)
 
 
-layout = column(row(model_panel, graph_panel), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
+layout = column(row(graph_panel, general_description), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
 
 doc.add_root(layout)
 
