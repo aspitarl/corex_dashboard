@@ -1,4 +1,5 @@
 #%%
+from bokeh.models.widgets.inputs import Select
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -231,16 +232,22 @@ def gen_model_callback(event=None):
     topic_model = ct.Corex(n_hidden=n_layers, seed=model_rand_slider.value)  # Define the number of latent (hidden) topics to use.
     topic_model.fit(X, words=feature_names, docs=metadata.index.values, anchors=anchors, anchor_strength=anchor_strength_slider.value) 
 
+    #Set model parameters as attributes for saving
     topic_model.anchor_strength = anchor_strength_slider.value
 
-    cPickle.dump(topic_model, open(os.path.join(data_folder, 'topic_model.pkl'), 'wb'))
-
     s_anchor = s_anchor.apply(" ".join)
-
     all_topic_names = ['topic_' + str(i) for i in range(n_layers)]
     s_anchor = s_anchor.reindex(all_topic_names)
 
-    s_anchor.to_csv(os.path.join(data_folder, 's_anchor.csv'))
+    topic_model.s_anchor = s_anchor
+
+    topic_model.random_state = model_rand_slider.value
+
+    #Save model
+    model_name =  model_name_input.value + '.pkl' 
+
+    cPickle.dump(topic_model, open(os.path.join(data_folder, 'models', model_name), 'wb'))
+
     status_str = 'Done fitting model. '
 
     if len(missing_words):
@@ -284,126 +291,135 @@ def check_word_callback(attr, old, new):
 
 check_word_input.on_change('value', check_word_callback)
 
+model_name_input = TextInput(title='model name')
+
+model_fitting_sliders = column(num_unsup_spinner, anchor_strength_slider, model_rand_slider)
+model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_input, button_default_anchors), column(generate_model_desc, model_name_input, gen_model_button, status_paragraph))
 
 #Graph controls
 
-generate_graph_desc = Paragraph(text='Graph Generation: Once a topic model is generated, Click Generate Graph to make a graph of connections between topics of model. The edges represent how often topics coocur in a given paper')
+generate_graph_desc = Paragraph(text='Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The edges represent how often topics coocur in a given paper')
 
+models = [f for f in os.listdir(os.path.join(data_folder, 'models'))]
+
+model_select = Select(options = models, value = models[0], title='select model')
 
 def gen_graph_callback(event=None):
 
-    status_paragraph.text = 'Updating Graph'
+    topic_model = cPickle.load(open(os.path.join(data_folder, 'models', model_select.value), 'rb'))
 
-    if os.path.exists(os.path.join(data_folder, 'topic_model.pkl')):
-        topic_model = cPickle.load(open(os.path.join(data_folder, 'topic_model.pkl'), 'rb'))
-        s_anchor = pd.read_csv(os.path.join(data_folder, 's_anchor.csv'), index_col=0)['anchor words']
+    s_anchor = topic_model.s_anchor
 
-        text_input.value = "\n".join(s_anchor.dropna().values)
+    text_input.value = "\n".join(s_anchor.dropna().values)
 
-        #way to get the number of unsupervised topics. Anchor weight stored in model
-        num_unsup_spinner.value = len(s_anchor) - len(s_anchor.dropna())
-        anchor_strength_slider.value = topic_model.anchor_strength
+    #way to get the number of unsupervised topics. Anchor weight stored in model
+    num_unsup_spinner.value = len(s_anchor) - len(s_anchor.dropna())
+    anchor_strength_slider.value = topic_model.anchor_strength
+    model_rand_slider.value = topic_model.random_state
 
-        topic_names = s_anchor.index.values
-            
-        da_sigma, da_doc_topic = calc_cov_corex(topic_model, topic_names, topic_model.docs)
+    topic_names = s_anchor.index.values
+        
+    da_sigma, da_doc_topic = calc_cov_corex(topic_model, topic_names, topic_model.docs)
 
-        topic_words = get_topic_words(topic_model, 20)
+    topic_words = get_topic_words(topic_model, 20)
 
+    topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
         topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
-        
-        G = gen_cov_graph(da_sigma, cutoff_weight_slider.value)
+    topic_keywords = pd.Series(topic_words, index = topic_names, name='topic words')    
+    
+    G = gen_cov_graph(da_sigma, cutoff_weight_slider.value)
 
-        line_thickness = pd.Series(1, index = topic_names)
-        for topic in s_anchor.dropna().index:
-            line_thickness[topic] = 5
+    line_thickness = pd.Series(1, index = topic_names)
+    for topic in s_anchor.dropna().index:
+        line_thickness[topic] = 5
 
-        line_thickness = line_thickness.reindex(G.nodes)
+    line_thickness = line_thickness.reindex(G.nodes)
 
-        for node in G.nodes:
-            G.nodes[node]['disp_text'] = topic_keywords[node].replace(',', '\n')
+    for node in G.nodes:
+        G.nodes[node]['disp_text'] = topic_keywords[node].replace(',', '\n')
 
-        if len(G.edges) == 0:
-            print('did not find any edges in graph')
-            # partition = {topic : 0 for topic in topic_names}
-            # num_partitions = 1
-        # else:
-        partition = community_louvain.best_partition(G, resolution = part_res_slider.value, random_state=part_rand_slider.value)
-        num_partitions = len(set(partition.values()))
-        
-        if num_partitions > 7:
-            pal = Spectral
-        else:
-            pal_dict = {1: Spectral3, 2: Spectral3, 3:Spectral3, 4 : Spectral4, 5 : Spectral5,  6: Spectral6, 7:Spectral7}
-            pal = pal_dict[num_partitions]
-        fill_colors = [pal[i] for i in partition.values()]
-
-
-        graph_renderer = gen_graph_renderer(G, fill_colors, line_thickness, seed= spring_rand_slider.value)
-        graph_figure.renderers = [graph_renderer]
-
-        graph_figure.tools.pop(-1)
-        graph_figure.tools.pop(-1)
-        graph_figure.add_tools(node_hover_tool, node_tap_tool)
-
-        
-
-        df_table = pd.DataFrame(index= G.nodes)
-
-        topic_part = pd.Series(list(partition.values()), index= G.nodes)
-        df_table['partition'] = topic_part
-
-
-        #Topic names will not be sorted in table as strings...
-        df_table['topic'] = [int(topicstr.split('topic_')[1]) for topicstr in G.nodes]
-
-        df_table['fill_color'] = fill_colors
-
-        # df_table = pd.concat([df_table, s_anchor], axis = 1)
-        df_table['anchor words'] = s_anchor
-        df_table['keywords'] = topic_keywords
-
-        df_table = df_table.sort_values('partition', ascending=False)
-
-
-        data_table.source.data = df_table
-
-        top_docs = topic_model.get_top_docs()      
-
-        display_texts = metadata['display_text']
-        corex_paper_display = []
-
-        for topic_n, topic_docs in enumerate(top_docs):
-            docs,probs = zip(*topic_docs)
-            docs = "Most Aligned Papers: <br>- " + "- ".join([display_texts[d] for d in docs])
-            corex_paper_display.append(docs)
-        corex_paper_display = pd.Series(corex_paper_display, index = topic_names)
-
-        MA_paper_display = []
-        aligned_docs = get_aligned_docs(da_doc_topic, metadata['prob'])
-        for topic in topic_names:
-            text = "Papers with highest MA rating for topic: <br>- " + "- ".join([display_texts[d] for d in aligned_docs[topic]])
-            MA_paper_display.append(text)
-
-        MA_paper_display = pd.Series(MA_paper_display, index = topic_names)
-
-        def text_callback(attr, old, new):
-            if len(new):
-
-                data = graph_renderer.node_renderer.data_source.data
-                topic = data['index'][new[0]]
-                # disp_text = data['topic_display_texts'][new[0]]
-
-                MA_papers_text.text = MA_paper_display[topic]
-                corex_papers_text.text = corex_paper_display[topic]
-            else:
-                MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
-                corex_papers_text.text = 'Click on a topic to see most aligned papers'
-
-        graph_renderer.node_renderer.data_source.selected.on_change("indices", text_callback)
-        status_paragraph.text = 'Graph Updated'
+    if len(G.edges) == 0:
+        print('did not find any edges in graph')
+        # partition = {topic : 0 for topic in topic_names}
+        # num_partitions = 1
+    # else:
+    partition = community_louvain.best_partition(G, resolution = part_res_slider.value, random_state=part_rand_slider.value)
+    num_partitions = len(set(partition.values()))
+    
+    if num_partitions > 7:
+        pal = Spectral
     else:
-        status_paragraph.text = 'No Topic Model'
+        pal_dict = {1: Spectral3, 2: Spectral3, 3:Spectral3, 4 : Spectral4, 5 : Spectral5,  6: Spectral6, 7:Spectral7}
+        pal = pal_dict[num_partitions]
+    fill_colors = [pal[i] for i in partition.values()]
+
+
+    graph_renderer = gen_graph_renderer(G, fill_colors, line_thickness, seed= spring_rand_slider.value)
+    graph_figure.renderers = [graph_renderer]
+
+    graph_figure.tools.pop(-1)
+    graph_figure.tools.pop(-1)
+    graph_figure.add_tools(node_hover_tool, node_tap_tool)
+
+    
+
+    df_table = pd.DataFrame(index= G.nodes)
+
+    topic_part = pd.Series(list(partition.values()), index= G.nodes)
+    df_table['partition'] = topic_part
+
+
+    #Topic names will not be sorted in table as strings...
+    df_table['topic'] = [int(topicstr.split('topic_')[1]) for topicstr in G.nodes]
+
+    df_table['fill_color'] = fill_colors
+
+    # df_table = pd.concat([df_table, s_anchor], axis = 1)
+    df_table['anchor words'] = s_anchor
+    df_table['keywords'] = topic_keywords
+
+    df_table = df_table.sort_values('partition', ascending=False)
+
+
+    data_table.source.data = df_table
+
+    top_docs = topic_model.get_top_docs()      
+        top_docs = topic_model.get_top_docs()      
+    top_docs = topic_model.get_top_docs()      
+
+    display_texts = metadata['display_text']
+    corex_paper_display = []
+
+    for topic_n, topic_docs in enumerate(top_docs):
+        docs,probs = zip(*topic_docs)
+        docs = "Most Aligned Papers: <br>- " + "- ".join([display_texts[d] for d in docs])
+        corex_paper_display.append(docs)
+    corex_paper_display = pd.Series(corex_paper_display, index = topic_names)
+
+    MA_paper_display = []
+    aligned_docs = get_aligned_docs(da_doc_topic, metadata['prob'])
+    for topic in topic_names:
+        text = "Papers with highest MA rating for topic: <br>- " + "- ".join([display_texts[d] for d in aligned_docs[topic]])
+        MA_paper_display.append(text)
+
+    MA_paper_display = pd.Series(MA_paper_display, index = topic_names)
+
+    def text_callback(attr, old, new):
+        if len(new):
+
+            data = graph_renderer.node_renderer.data_source.data
+            topic = data['index'][new[0]]
+            # disp_text = data['topic_display_texts'][new[0]]
+
+            MA_papers_text.text = MA_paper_display[topic]
+            corex_papers_text.text = corex_paper_display[topic]
+        else:
+            MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
+            corex_papers_text.text = 'Click on a topic to see most aligned papers'
+
+    graph_renderer.node_renderer.data_source.selected.on_change("indices", text_callback)
+    
+
 
 
 
@@ -414,6 +430,9 @@ part_res_slider = Slider(start=0.1, end=5.0, value=1.0, step =0.1, title='partit
 cutoff_weight_slider = Slider(start=0, end=5.0, value=0.2, step =0.05, title='edge minimum weight')
 part_rand_slider = Slider(start=1, end=100, value = 42, title='partition random state')
 spring_rand_slider = Slider(start=1, end=100, value = 42, title='layout random state')
+
+graph_gen_sliders = column(part_res_slider, part_rand_slider, spring_rand_slider, cutoff_weight_slider)
+graph_panel = row(graph_gen_sliders, column(generate_graph_desc, model_select, gen_graph_button))
 
 #Paper links
 
@@ -426,14 +445,8 @@ MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for
 
 # Layout
 
-model_fitting_sliders = column(num_unsup_spinner, anchor_strength_slider, model_rand_slider)
-graph_gen_sliders = column(part_res_slider, part_rand_slider, spring_rand_slider, cutoff_weight_slider)
 
-model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_input, button_default_anchors), column(generate_model_desc, gen_model_button))
-graph_panel = row(graph_gen_sliders, column(generate_graph_desc, gen_graph_button))
-
-
-layout = column(row(model_panel, graph_panel, status_paragraph), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
+layout = column(row(model_panel, graph_panel), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
 
 doc.add_root(layout)
 
