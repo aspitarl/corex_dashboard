@@ -448,7 +448,7 @@ This visualizaiton is part of a project trying to use natural language processin
 )
 
 
-layout = column(row(graph_panel, general_description), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
+layout = column(row(model_panel, generate_model_desc), row(graph_panel, general_description), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
 
 doc.add_root(layout)
 
