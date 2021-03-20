@@ -38,8 +38,10 @@ X = sparse.load_npz(os.path.join(data_folder, 'X.npz'))
 with open(os.path.join(data_folder , 'feature_names.txt'), 'r', encoding='utf-8') as f:
     feature_names = [feat.rstrip() for feat in f.readlines()]
 
-metadata = pd.read_csv(os.path.join(data_folder, 'metadata.csv'), index_col=0)
+input_data = pd.read_csv(os.path.join(data_folder, 'input_data.csv'), index_col=0)
+display_text = pd.read_csv(os.path.join(data_folder, 'display_text.csv'), index_col=0)
 
+metadata = pd.concat([input_data, display_text], axis=1)
 
 def get_topic_words(topic_model, num_words=10):
 
@@ -248,7 +250,7 @@ def gen_model_callback(event=None):
 
     cPickle.dump(topic_model, open(os.path.join(data_folder, 'models', model_name), 'wb'))
 
-    status_str = 'Done fitting model. '
+    status_str = 'Done fitting model. (Refresh page)'
 
     if len(missing_words):
         status_str = status_str + 'Could not find anchor words: ' + str(missing_words)
@@ -256,7 +258,7 @@ def gen_model_callback(event=None):
     status_paragraph.text = status_str
     
 
-num_unsup_spinner = Spinner(low=0, high=100, step = 1, value=0, title='number unsupervised topics')
+num_unsup_spinner = Spinner(low=0, high=100, step = 1, value=5, title='number unsupervised topics')
 anchor_strength_slider = Slider(start=1, end=10, value=5, title='anchor strength')
 model_rand_slider = Slider(start=1, end=100, value = 42, title='model random state')
 
@@ -266,16 +268,19 @@ def gen_model_callback_wrapper(event):
     status_paragraph.update(text='Fitting Model, please wait')
     doc.add_next_tick_callback(gen_model_callback)
     
-gen_model_button = Button(label = 'Generate Model')
+gen_model_button = Button(label = 'Generate/Overwrite Model')
 gen_model_button.on_click(gen_model_callback_wrapper)   
 
 
 button_default_anchors = Button(label='Load Default Anchors')
 
 def load_default_anchors_callback(event):
-    with open(os.path.join(data_folder, 'anchor_default.txt')) as f:
-        anchor_text = f.read()
-    text_input.value = anchor_text
+    if os.path.exists(os.path.join(data_folder, 'anchor_default.txt')):
+        with open(os.path.join(data_folder, 'anchor_default.txt')) as f:
+            anchor_text = f.read()
+        text_input.value = anchor_text
+    else:
+        status_paragraph.text = 'data/anchor_default.txt not found, create it to have default anchor words'
 
 button_default_anchors.on_click(load_default_anchors_callback)
 
@@ -290,7 +295,7 @@ def check_word_callback(attr, old, new):
 
 check_word_input.on_change('value', check_word_callback)
 
-model_name_input = TextInput(title='model name')
+model_name_input = TextInput(title='model name', value='my_model')
 
 model_fitting_sliders = column(num_unsup_spinner, anchor_strength_slider, model_rand_slider)
 model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_input, button_default_anchors), column(generate_model_desc, model_name_input, gen_model_button, status_paragraph))
@@ -301,13 +306,18 @@ generate_graph_desc = Div(text="""
 Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The models consist of combinations of anchored and unsupervised topics. Anchored topics have a thick border. The edges represent how often topics coocur in a given paper and the nodes are colored (partitioned) with a Louvain community detection algorithm, See <a href=https://energsustainsoc.biomedcentral.com/articles/10.1186/s13705-019-0226-z>Bickel (2019)</a>. Change the sliders and recreate the graph.
 """)
 
-models = [f for f in os.listdir(os.path.join(data_folder, 'models'))]
+if not os.path.exists(os.path.join(data_folder, 'models')):
+    os.makedirs(os.path.join(data_folder, 'models'))
 
-model_select = Select(options = models, value = models[0], title='select model')
+models = [os.path.splitext(f)[0]  for f in os.listdir(os.path.join(data_folder, 'models'))]
+
+initial_model = models[0] if len(models) else None
+
+model_select = Select(options = models, value = initial_model, title='select model (refresh page for new models)')
 
 def gen_graph_callback(event=None):
 
-    topic_model = cPickle.load(open(os.path.join(data_folder, 'models', model_select.value), 'rb'))
+    topic_model = cPickle.load(open(os.path.join(data_folder, 'models', model_select.value + '.pkl'), 'rb'))
 
     s_anchor = topic_model.s_anchor
 
@@ -317,6 +327,7 @@ def gen_graph_callback(event=None):
     num_unsup_spinner.value = len(s_anchor) - len(s_anchor.dropna())
     anchor_strength_slider.value = topic_model.anchor_strength
     model_rand_slider.value = topic_model.random_state
+    model_name_input.value = model_select.value
 
     topic_names = s_anchor.index.values
         
@@ -393,13 +404,17 @@ def gen_graph_callback(event=None):
         corex_paper_display.append(docs)
     corex_paper_display = pd.Series(corex_paper_display, index = topic_names)
 
-    MA_paper_display = []
-    aligned_docs = get_aligned_docs(da_doc_topic, metadata['prob'])
-    for topic in topic_names:
-        text = "Papers with highest MA rating for topic: <br>- " + "- ".join([display_texts[d] for d in aligned_docs[topic]])
-        MA_paper_display.append(text)
 
-    MA_paper_display = pd.Series(MA_paper_display, index = topic_names)
+    if 'prob' in metadata:
+        MA_paper_display = []
+        aligned_docs = get_aligned_docs(da_doc_topic, metadata['prob'])
+        for topic in topic_names:
+            text = "Papers with highest MA rating for topic: <br>- " + "- ".join([display_texts[d] for d in aligned_docs[topic]])
+            MA_paper_display.append(text)
+
+        MA_paper_display = pd.Series(MA_paper_display, index = topic_names)
+    else:
+        MA_paper_display = None
 
     def text_callback(attr, old, new):
         if len(new):
@@ -408,10 +423,10 @@ def gen_graph_callback(event=None):
             topic = data['index'][new[0]]
             # disp_text = data['topic_display_texts'][new[0]]
 
-            MA_papers_text.text = MA_paper_display[topic]
+            if type(MA_paper_display) != type(None): MA_papers_text.text = MA_paper_display[topic]
             corex_papers_text.text = corex_paper_display[topic]
         else:
-            MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
+            if type(MA_paper_display) != type(None): MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
             corex_papers_text.text = 'Click on a topic to see most aligned papers'
 
     graph_renderer.node_renderer.data_source.selected.on_change("indices", text_callback)
@@ -437,7 +452,10 @@ corex_papers_text = Div(style={'overflow-y':'scroll', 'height':'250px', 'width':
 corex_papers_text.text = 'Click on a topic to see most aligned papers'
 
 MA_papers_text = Div(style={'overflow-y':'scroll', 'height':'250px', 'width': '800px'})
-MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
+if 'prob' in metadata:
+    MA_papers_text.text = 'Click on a topic to see papers with highest MA rating for selected topic'
+else:
+    MA_papers_text.text = 'No paper search probability found'
 
 
 # Layout
