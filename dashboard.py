@@ -31,7 +31,12 @@ import _pickle as cPickle
 # output_notebook()
 
 BASE_DIR =  os.path.dirname(os.path.abspath(__file__))
-data_folder = os.path.join(BASE_DIR, 'data')
+
+if not os.path.exists(os.path.join(BASE_DIR, 'data')):
+    print("Could not find `data` folder, loading example data")
+    data_folder = os.path.join(BASE_DIR, 'example_data')
+else:
+    data_folder = os.path.join(BASE_DIR, 'data')
 
 X = sparse.load_npz(os.path.join(data_folder, 'X.npz'))
 
@@ -258,7 +263,7 @@ def gen_model_callback(event=None):
     status_paragraph.text = status_str
     
 
-num_unsup_spinner = Spinner(low=0, high=100, step = 1, value=5, title='number unsupervised topics')
+num_unsup_spinner = Spinner(low=0, high=100, step = 1, value=10, title='number unsupervised topics')
 anchor_strength_slider = Slider(start=1, end=10, value=5, title='anchor strength')
 model_rand_slider = Slider(start=1, end=100, value = 42, title='model random state')
 

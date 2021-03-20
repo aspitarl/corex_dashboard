@@ -16,9 +16,11 @@ You can also install the requirements with pip using `python -m pip install -r r
 
 ## Preparing input data
 
+The dashboard can be used with the example dataset by default. Follow these instructions to use your own text data. 
+
 The folder `example_data` has example files that are used with the dashboard. All of the files in this folder are generated from `input_data.csv`, except for `anchor_default.txt` which is an optional list of default anchor words to be used in generating models. 
 
-To start, create a folder called `data` and generate (e.g. write a script) an `input_data.csv` file in this folder. The csv file has a unique integer index for each document called `ID` as the first column. There are the additional columns 
+To start, create a folder called `data` and generate (e.g. write a script) an `input_data.csv` file in this folder.  The csv file has a unique integer index for each document called `ID` as the first column. There are the additional columns 
 
 * title (required) - title of each document
 * processed_text (required) - space separated list of strings corresponding to the text of each document
