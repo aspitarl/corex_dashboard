@@ -1,3 +1,7 @@
+"""
+This is the main dashboard script. run with `bokeh serve dashboard.py --show`
+"""
+
 #%%
 from bokeh.models.widgets.inputs import Select
 import numpy as np
@@ -28,8 +32,7 @@ from bokeh.io import curdoc
 
 import _pickle as cPickle
 
-# output_notebook()
-
+#determine the data folder, note finding the BASE_DIR in this way is necesary for Heroku
 BASE_DIR =  os.path.dirname(os.path.abspath(__file__))
 
 if not os.path.exists(os.path.join(BASE_DIR, 'data')):
@@ -38,6 +41,7 @@ if not os.path.exists(os.path.join(BASE_DIR, 'data')):
 else:
     data_folder = os.path.join(BASE_DIR, 'data')
 
+#Load in the data generated in gendata.py
 X = sparse.load_npz(os.path.join(data_folder, 'X.npz'))
 
 with open(os.path.join(data_folder , 'feature_names.txt'), 'r', encoding='utf-8') as f:
@@ -48,6 +52,7 @@ display_text = pd.read_csv(os.path.join(data_folder, 'display_text.csv'), index_
 
 metadata = pd.concat([input_data, display_text], axis=1)
 
+##Utility functions
 def get_topic_words(topic_model, num_words=10):
 
     topic_words = []
@@ -60,12 +65,12 @@ def get_topic_words(topic_model, num_words=10):
     return topic_words
 
 
-from numba import jit
-
+# Originally optimized this with numba, but that doesn't work on Heroku.
 # From nlp_utils, to reduce need for import 
+# from numba import jit
 # @jit(nopython=True)
 def calc_cov(gamma_di_sub):
-
+    """calculate the covariance matrix"""
     n_docs = gamma_di_sub.shape[0]
     n_topics = gamma_di_sub.shape[1]
 
@@ -82,6 +87,10 @@ def calc_cov(gamma_di_sub):
 
 
 def calc_cov_corex(topic_model, topic_names, doc_names):
+    """
+    calculate the covariance matrix (topic coocurence) used to define the edges in the graph
+    see here:  https://www.aclweb.org/anthology/W14-3112.pdf
+    """
 
     doc_topic_prob = topic_model.p_y_given_x
 
@@ -107,7 +116,10 @@ def calc_cov_corex(topic_model, topic_names, doc_names):
 
 
 def gen_cov_graph(da_sigma, cutoff_weight):
-
+    """
+    Generate the graph from the covariance materix.
+    The cutoff_weight is the minimum connection needed to form an edge
+    """
     G = nx.Graph() 
 
     for topic_i in da_sigma.coords['topic_i'].values:
@@ -125,19 +137,6 @@ def gen_cov_graph(da_sigma, cutoff_weight):
         G.nodes[node]['size'] = 20
 
     return G
-
-def gen_graph_renderer(G, fill_colors, line_thickness, seed):
-    graph_renderer = from_networkx(G, nx.spring_layout, scale=1, seed=seed, center=(0, 0), k=0.05)
-
-    graph_renderer.node_renderer.data_source.add(fill_colors, 'color')
-    graph_renderer.node_renderer.data_source.add(line_thickness.values, 'line_thick')    
-
-    graph_renderer.node_renderer.glyph = Circle(radius = 'size', fill_color = 'color', fill_alpha= 1, radius_units='screen', line_color = 'black', line_width='line_thick')
-    graph_renderer.edge_renderer.glyph = MultiLine(line_width = 'weight', line_alpha = 0.3)
-
-    return graph_renderer
-
-
 
 
 def get_aligned_docs(da_doc_topic, prob, num=10):
@@ -160,6 +159,22 @@ def get_aligned_docs(da_doc_topic, prob, num=10):
     return aligned_docs
 
 
+### Bokeh Stuff ###
+
+def gen_graph_renderer(G, fill_colors, line_thickness, seed):
+    """generate the renderer from the graph and metadata"""
+    graph_renderer = from_networkx(G, nx.spring_layout, scale=1, seed=seed, center=(0, 0), k=0.05)
+
+    graph_renderer.node_renderer.data_source.add(fill_colors, 'color')
+    graph_renderer.node_renderer.data_source.add(line_thickness.values, 'line_thick')    
+
+    graph_renderer.node_renderer.glyph = Circle(radius = 'size', fill_color = 'color', fill_alpha= 1, radius_units='screen', line_color = 'black', line_width='line_thick')
+    graph_renderer.edge_renderer.glyph = MultiLine(line_width = 'weight', line_alpha = 0.3)
+
+    return graph_renderer
+
+
+# Define the main figure and table
 
 graph_figure = figure(plot_width=900, plot_height=700,
             x_range=Range1d(-1.1, 1.1), y_range=Range1d(-1.1, 1.1))
@@ -201,13 +216,14 @@ doc = curdoc()
 status_paragraph =Div()
 
 
-#Model controls
+## Model Generation controls
 
 generate_model_desc = Paragraph(text='Model Generation: Click to generate a new model. Warning: will take a few minutes, longer for more topics')
 
 text_input = TextAreaInput(rows=8, width= 250, title='Model Anchor Words')
 
 def gen_model_callback(event=None):
+    """The model generation callback"""
     anchor_text = text_input.value
     anchors = anchor_text.splitlines()
         
@@ -305,7 +321,7 @@ model_name_input = TextInput(title='model name', value='my_model')
 model_fitting_sliders = column(num_unsup_spinner, anchor_strength_slider, model_rand_slider)
 model_panel = row(column(model_fitting_sliders, check_word_input, ),column(text_input, button_default_anchors), column(generate_model_desc, model_name_input, gen_model_button, status_paragraph))
 
-#Graph controls
+## Graph generation controls
 
 generate_graph_desc = Div(text="""
 Graph Generation: Select a topic model and click Generator Graph to make a graph of connections between topics of the model. The models consist of combinations of anchored and unsupervised topics. Anchored topics have a thick border. The edges represent how often topics coocur in a given paper and the nodes are colored (partitioned) with a Louvain community detection algorithm, See <a href=https://energsustainsoc.biomedcentral.com/articles/10.1186/s13705-019-0226-z>Bickel (2019)</a>. Change the sliders and recreate the graph.
@@ -321,6 +337,7 @@ initial_model = models[0] if len(models) else None
 model_select = Select(options = models, value = initial_model, title='select model (refresh page for new models)')
 
 def gen_graph_callback(event=None):
+    """The graph generation callback, a model must be defined first"""
 
     topic_model = cPickle.load(open(os.path.join(data_folder, 'models', model_select.value + '.pkl'), 'rb'))
 
@@ -437,9 +454,6 @@ def gen_graph_callback(event=None):
     graph_renderer.node_renderer.data_source.selected.on_change("indices", text_callback)
     
 
-
-
-
 gen_graph_button = Button(label = 'Generate Graph')
 gen_graph_button.on_click(gen_graph_callback)   
 
@@ -463,13 +477,14 @@ else:
     MA_papers_text.text = 'No paper search probability found'
 
 
-# Layout
+
 general_description = Div(text=
 """
 This visualizaiton is part of a project trying to use natural language processing to undersand the state of the literature in the field of Energy Storage, read more <a href=https://aspitarl.github.io/projects/1_nlp/>here</a>. The Topic model is <a href=https://github.com/gregversteeg/corex_topic>Anchored CorEx</a>. The Github repository containing this app can be found <a href=https://github.com/aspitarl/corex_dashboard> here</a>.
 """
 )
 
+## Layout
 
 layout = column(row(model_panel, generate_model_desc), row(graph_panel, general_description), row(graph_figure, data_table), row(corex_papers_text, MA_papers_text))
 
