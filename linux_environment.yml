@@ -30,6 +30,7 @@ dependencies:
   - googleapis-common-protos=1.52.0
   - icu=68.1
   - idna=2.10
+  - intel-openmp=2020.2
   - jinja2=2.11.3
   - jmespath=0.10.0
   - joblib=1.0.1
