@@ -21,7 +21,8 @@ from bokeh.models.sources import ColumnDataSource, CustomJS
 from bokeh.io import output_file, show, output_notebook
 from bokeh.models import (BoxZoomTool, Circle, HoverTool,
                           MultiLine, Plot, Range1d, ResetTool, TapTool, Div, Circle, MultiLine,
-                          Button, TextAreaInput, Slider, Paragraph, TextInput, Spinner)
+                          Button, TextAreaInput, Slider, Paragraph, TextInput, Spinner, #BRYCE CODE
+                          NodesAndLinkedEdges, EdgesAndLinkedNodes) #END BRYCE CODE
 from bokeh.plotting import figure, show, from_networkx
 from bokeh.palettes import Spectral3, Spectral4, Spectral5, Spectral6, Spectral7, Spectral
 from bokeh.layouts import column, row, layout
@@ -170,6 +171,20 @@ def gen_graph_renderer(G, fill_colors, line_thickness, seed):
 
     graph_renderer.node_renderer.glyph = Circle(radius = 'size', fill_color = 'color', fill_alpha= 1, radius_units='screen', line_color = 'black', line_width='line_thick')
     graph_renderer.edge_renderer.glyph = MultiLine(line_width = 'weight', line_alpha = 0.3)
+
+    #BRYCE CODE
+    # https://stackoverflow.com/questions/34210614/how-to-set-properties-of-selected-unselected-glyphs-in-bokeh 
+    graph_renderer.node_renderer.hover_glyph= Circle(radius = 'size', fill_color = 'color', fill_alpha= 1, radius_units='screen', line_color = "#ff70f5", line_width=5)
+    graph_renderer.node_renderer.selection_glyph = Circle(radius = 'size', fill_color = 'color', fill_alpha= 1, radius_units='screen', line_color = "#ff70f5", line_width=5)
+    graph_renderer.node_renderer.nonselection_glyph = Circle(radius = 'size', fill_color = 'color', fill_alpha= 0.3, radius_units='screen', line_color = "black", line_width='line_thick')
+    graph_renderer.edge_renderer.hover_glyph = MultiLine(line_width = 'weight', line_alpha = 0.8, line_color="#ff70f5")
+    graph_renderer.edge_renderer.selection_glyph = MultiLine(line_width = 'weight', line_alpha = 0.8, line_color="#ff70f5")
+    graph_renderer.edge_renderer.nonselection_glyph = MultiLine(line_width = 'weight', line_alpha = 0.1, line_color="black")
+    #graph_renderer.selection_policy = EdgesAndLinkedNodes()
+    graph_renderer.inspection_policy = NodesAndLinkedEdges()
+    graph_renderer.selection_policy = NodesAndLinkedEdges()
+    # idea: you should be able to toggle back and forth between selecting nodes and selecting edges, and different information should pop up for each.
+    #END BRYCE CODE
 
     return graph_renderer
 
