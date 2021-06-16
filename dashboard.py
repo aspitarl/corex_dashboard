@@ -50,7 +50,7 @@ with open(os.path.join(data_folder , 'feature_names.txt'), 'r', encoding='utf-8'
 
 input_data = pd.read_csv(os.path.join(data_folder, 'input_data.csv'), index_col=0)
 display_text = pd.read_csv(os.path.join(data_folder, 'display_text.csv'), index_col=0)
-
+#meta data is input data and display text
 metadata = pd.concat([input_data, display_text], axis=1)
 
 ##Utility functions
@@ -74,7 +74,7 @@ def calc_cov(gamma_di_sub):
     """calculate the covariance matrix"""
     n_docs = gamma_di_sub.shape[0]
     n_topics = gamma_di_sub.shape[1]
-
+    
     sigma = np.zeros((n_topics,n_topics))
     sigma
     for i in range(n_topics):
@@ -162,7 +162,7 @@ def get_aligned_docs(da_doc_topic, prob, num=10):
 
 ### Bokeh Stuff ###
 
-def gen_graph_renderer(G, fill_colors, line_thickness, seed):
+def gen_graph_renderer(G, fill_colors, line_thickness, seed, selection_policy):
     """generate the renderer from the graph and metadata"""
     graph_renderer = from_networkx(G, nx.spring_layout, scale=1, seed=seed, center=(0, 0), k=0.05)
 
@@ -180,9 +180,11 @@ def gen_graph_renderer(G, fill_colors, line_thickness, seed):
     graph_renderer.edge_renderer.hover_glyph = MultiLine(line_width = 'weight', line_alpha = 0.8, line_color="#ff70f5")
     graph_renderer.edge_renderer.selection_glyph = MultiLine(line_width = 'weight', line_alpha = 0.8, line_color="#ff70f5")
     graph_renderer.edge_renderer.nonselection_glyph = MultiLine(line_width = 'weight', line_alpha = 0.1, line_color="black")
-    #graph_renderer.selection_policy = EdgesAndLinkedNodes()
+    if selection_policy == "nodes":
+        graph_renderer.selection_policy = NodesAndLinkedEdges()
+    else:
+        graph_renderer.selection_policy = EdgesAndLinkedNodes()
     graph_renderer.inspection_policy = NodesAndLinkedEdges()
-    graph_renderer.selection_policy = NodesAndLinkedEdges()
     # idea: you should be able to toggle back and forth between selecting nodes and selecting edges, and different information should pop up for each.
     #END BRYCE CODE
 
@@ -351,6 +353,7 @@ initial_model = models[0] if len(models) else None
 
 model_select = Select(options = models, value = initial_model, title='select model (refresh page for new models)')
 
+
 def gen_graph_callback(event=None):
     """The graph generation callback, a model must be defined first"""
 
@@ -365,6 +368,10 @@ def gen_graph_callback(event=None):
     anchor_strength_slider.value = topic_model.anchor_strength
     model_rand_slider.value = topic_model.random_state
     model_name_input.value = model_select.value
+
+    #BRYCE CODE
+    selection_policy = node_edge_select.value
+    #END BRYCE CODE
 
     topic_names = s_anchor.index.values
         
@@ -400,8 +407,9 @@ def gen_graph_callback(event=None):
         pal = pal_dict[num_partitions]
     fill_colors = [pal[i] for i in partition.values()]
 
-
-    graph_renderer = gen_graph_renderer(G, fill_colors, line_thickness, seed= spring_rand_slider.value)
+    #BRYCE CODE
+    graph_renderer = gen_graph_renderer(G, fill_colors, line_thickness, seed= spring_rand_slider.value, selection_policy=selection_policy)
+    #END BRYCE CODE
     graph_figure.renderers = [graph_renderer]
 
     graph_figure.tools.pop(-1)
@@ -477,8 +485,12 @@ cutoff_weight_slider = Slider(start=0, end=5.0, value=0.2, step =0.05, title='ed
 part_rand_slider = Slider(start=1, end=100, value = 42, title='partition random state')
 spring_rand_slider = Slider(start=1, end=100, value = 42, title='layout random state')
 
+#BRYCE CODE
+node_edge_select = Select(options = ['nodes', 'edges'], value = 'nodes', title='Select nodes or edges')
+#END BRYCE CODE
+
 graph_gen_sliders = column(part_res_slider, spring_rand_slider, cutoff_weight_slider)
-graph_panel = row(generate_graph_desc, graph_gen_sliders, column(model_select, gen_graph_button))
+graph_panel = row(generate_graph_desc, graph_gen_sliders, column(model_select, node_edge_select, gen_graph_button))
 
 #Paper links
 
