@@ -1,0 +1,15 @@
+supercapacitor
+smes
+lead_acid
+lithium_ion
+redox_flow
+pumped_hydro
+compressed_air advanced_adiabatic diabatic
+laes
+flywheel
+hydrogen
+methanol ammonia p2g
+sensible_heat
+latent_heat
+thermochemical
+heat_pump ptes

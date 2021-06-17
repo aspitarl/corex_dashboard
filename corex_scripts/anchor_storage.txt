@@ -1,0 +1,6 @@
+chemical
+thermal
+pressure
+kinetic
+gravitational
+electrical
