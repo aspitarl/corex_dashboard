@@ -13,9 +13,33 @@ import re
 from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer
 
-input_csv_fp = 'data/input_data.csv'
+from nlp_utils import gensim_utils, sklearn_utils, fileio
+data_folder = r'C:\Users\aspit\Git\MLEF-Energy-Storage\ES_TextData\data'
+df_text = fileio.load_df(os.path.join(data_folder, 'SOC_ES.db'))
+df_text = df_text.loc[df_text.index.drop_duplicates()]
 
-df_text = pd.read_csv(input_csv_fp, index_col=0)
+
+def citations_to_list(text):
+    text = text.strip("][").split(', ')
+    text = [t.replace("'","") for t in text]
+    return text
+
+
+df_text['inCitations'] = df_text['inCitations'].apply(citations_to_list)
+df_text['num_citations'] = df_text['inCitations'].apply(len)#.value_counts()
+
+df_text = df_text.rename({
+    'Title': 'title',
+    'num_citations': 'prob'
+}, axis=1)
+
+# df_text = df_text.sample(1000, random_state=42)
+
+
+
+# input_csv_fp = 'data/input_data.csv'
+
+# df_text = pd.read_csv(input_csv_fp, index_col=0)
 
 
 #TODO: Some chineese characters are not being caught by lang detect, need to add to text processing
@@ -61,7 +85,8 @@ else:
     display_text = df_text['title']
     
 if 'prob' in df_text:
-    display_text += " logprob=" + df_text['prob'].apply(np.log).apply(lambda x: '%.3f' % x)
+    # display_text += " logprob=" + df_text['prob'].apply(np.log).apply(lambda x: '%.3f' % x)
+    display_text += " prob=" + df_text['prob'].apply(str)
 
 display_text += " <br>"
 
