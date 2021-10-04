@@ -10,6 +10,8 @@ import xarray as xr
 import os
 import sys
 
+
+# sys.path.append('./corex_topic')
 from corextopic import corextopic as ct
 import networkx as nx 
 from scipy import sparse
@@ -47,10 +49,35 @@ X = sparse.load_npz(os.path.join(data_folder, 'X.npz'))
 with open(os.path.join(data_folder , 'feature_names.txt'), 'r', encoding='utf-8') as f:
     feature_names = [feat.rstrip() for feat in f.readlines()]
 
-input_data = pd.read_csv(os.path.join(data_folder, 'input_data.csv'), index_col=0)
+# input_data = pd.read_csv(os.path.join(data_folder, 'input_data.csv'), index_col=0)
+
+from nlp_utils import gensim_utils, sklearn_utils, fileio
+df_text = fileio.load_df(os.path.join(r'C:\Users\aspit\Git\MLEF-Energy-Storage\ES_TextData\data', 'SOC_ES.db'))
+# df_text = df_text.sample(1000, random_state=42)
+df_text = df_text.loc[df_text.index.drop_duplicates()]
+
+def citations_to_list(text):
+    text = text.strip("][").split(', ')
+    text = [t.replace("'","") for t in text]
+    return text
+
+
+df_text['inCitations'] = df_text['inCitations'].apply(citations_to_list)
+df_text['num_citations'] = df_text['inCitations'].apply(len)#.value_counts()
+
+df_text = df_text.rename({
+    'Title': 'title',
+    'num_citations': 'prob'
+}, axis=1)
+
+df_text['ID'] = df_text.index
+
+
+df_text = df_text[['ID','processed_text','title','url','prob']]
+
 display_text = pd.read_csv(os.path.join(data_folder, 'display_text.csv'), index_col=0)
 
-metadata = pd.concat([input_data, display_text], axis=1)
+metadata = pd.concat([df_text, display_text], axis=1)
 
 ##Utility functions
 def get_topic_words(topic_model, num_words=10):
@@ -59,7 +86,7 @@ def get_topic_words(topic_model, num_words=10):
 
     topics = topic_model.get_topics(num_words)
     for topic_n,topic in enumerate(topics):
-        words,mis = zip(*topic)
+        words,mis, sign = zip(*topic)
         topic_words.append(", ".join(words))
 
     return topic_words
@@ -492,4 +519,4 @@ doc.add_root(layout)
 
 #If there is an existing model already create the graph 
 if os.path.exists(os.path.join(data_folder, 'topic_model.pkl')):
-    gen_graph_callback(None)
+    gen_graph_callback(None)   

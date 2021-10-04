@@ -1,0 +1,3 @@
+[submodule "corex_topic"]
+	path = corex_topic
+	url = https://github.com/gregversteeg/corex_topic
